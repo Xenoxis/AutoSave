@@ -8,7 +8,7 @@ function Initialize(Plugin)
 	ClientsConnected = 0
 	TicksChecks = 0
 	LastSaveTime = os.time()
-	PluginInfo = {["name"] = Plugin:GetName(), ["version"] = Plugin:GetVersion(),}
+	PluginInfo = {["name"] = Plugin:GetName(), ["MajorVersion"] = Plugin:GetVersion(), ["MinorVersion"] = 1}
 	LoadMessages()
 	LoadParameters()
 	
@@ -21,7 +21,7 @@ function Initialize(Plugin)
 	-- Get the number of players connected (in the case of loading the plugins after server initialisation)
 	cRoot:Get():ForEachPlayer(OnJoin)
 	
-	LOG("Plugin " .. PluginInfo["name"] .. " by Xenoxis - Version " .. PluginInfo["version"] .. " initialised !")
+	LOG("Plugin " .. PluginInfo["name"] .. " by Xenoxis - Version " .. PluginInfo["MajorVersion"] .. "." .. PluginInfo["MinorVersion"] .. " initialised !")
 	return true
 end
 
@@ -36,7 +36,7 @@ function LoadMessages()
 		["playerdisconnected"]	= "No more players connected - Disabling auto saving.",
 		["allworldssaved"]		= "All worlds have been saved.",
 		["savecompleted"]		= "Save successfully completed.",
-		["uncorrectsyntax"] 	= "Use the correct syntax : /autosave <version | timestamp>",
+		["uncorrectsyntax"] 	= "Use the correct syntax : /autosave <version | timestamp | broadcast>",
 		["notpermission"]	 	= "You have not the permission to do this.",
 		["currenttimestamp"]	= "Current Timestamp : ",
 		["timestampchanged"]	= "Timestamp successfully changed.",
@@ -108,7 +108,7 @@ function TickServSave(Plugin)
 	if (os.difftime(os.time(), LastSaveTime) >= DefaultSaveTime) then
 		cRoot:Get():ForEachWorld(function(cWorld)
 			cWorld:QueueSaveAllChunks()
-			if not(MinimalBroadcastToPlayer) then cRoot:Get():BroadcastChatInfo("[" .. PluginInfo["name"] .. "] \"" .. cWorld:GetName() .. "\" saved !") end
+			if (MinimalBroadcastToPlayer == 0) then cRoot:Get():BroadcastChatInfo("[" .. PluginInfo["name"] .. "] \"" .. cWorld:GetName() .. "\" saved !") end
 		end)
 		cRoot:Get():BroadcastChatSuccess(Message["prefix"] .. Message["allworldssaved"])
 		LOG(Message["prefix"] .. Message["savecompleted"])
@@ -122,7 +122,7 @@ function OnCommand(CommandSplit, CurrentPlayer)
 	
 	local SecondParameter = {
 		-- /autosave version
-		["version"] = function() CurrentPlayer:SendMessageInfo("Plugin " .. PluginInfo["name"] .. " - Version " .. PluginInfo["version"] .. " by Xenoxis") end,
+		["version"] = function() CurrentPlayer:SendMessageInfo("Plugin " .. PluginInfo["name"] .. " - Version " .. PluginInfo["MajorVersion"] .. "." .. PluginInfo["MinorVersion"] .. " by Xenoxis") end,
 		
 		-- /autosave timestamp <value in seconds>
 		["timestamp"] = function()
@@ -144,9 +144,10 @@ function OnCommand(CommandSplit, CurrentPlayer)
 		-- /autosave broadcast < normal | minimal>
 		["broadcast"] = function()
 			local success = false
+			local BroadcastType = (MinimalBroadcastToPlayer == 1) and "Minimal" or "Normal"
 			
 			if (CommandSplit[3] == nil) then
-				CurrentPlayer:SendMessageSuccess(Message["prefix"] .. Message["currentbroadcast"] .. (MinimalBroadcastToPlayer) and "Minimal" or "Normal")
+				CurrentPlayer:SendMessageSuccess(Message["prefix"] .. Message["currentbroadcast"] .. BroadcastType)
 				return true
 			end
 			
@@ -160,14 +161,20 @@ function OnCommand(CommandSplit, CurrentPlayer)
 			end
 			
 			if (success) then
+				BroadcastType = (MinimalBroadcastToPlayer == 1) and "Minimal" or "Normal"
 				CurrentPlayer:SendMessageSuccess(Message["prefix"] .. Message["broadcastchanged"])
 				SaveParameters()
-				LOG(Message["prefix"] .. "Broadcast changed, new value : " .. (MinimalBroadcastToPlayer) and "Minimal" or "Normal")
+				LOG(Message["prefix"] .. "Broadcast changed, new value : " .. BroadcastType)
 			else
 				CurrentPlayer:SendMessageFailure(Message["prefix"] .. " Unknown value entered, use /autosave broadcast <normal | minimal>")
 			end
 		end
 	}
+	
+	if (CommandSplit[2] == nil) then
+		CurrentPlayer:SendMessageInfo(Message["prefix"] .. Message["uncorrectsyntax"])
+		return true
+	end
 	
 	for command in pairs(SecondParameter) do
 		if (command == CommandSplit[2]:lower()) then
